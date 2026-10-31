@@ -1,0 +1,39 @@
+.functorium-atlas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+  align-content: start;
+}
+
+.functorium-atlas-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+}
+
+.functorium-atlas-card-kind {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: var(--font-smaller);
+  text-transform: uppercase;
+}
+
+.functorium-atlas-card-title {
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+.functorium-atlas-card-content {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: var(--font-smaller);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 180px;
+  overflow-y: auto;
+}

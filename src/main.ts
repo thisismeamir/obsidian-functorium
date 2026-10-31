@@ -1,114 +1,66 @@
-import {
-	Editor,
-	MarkdownView,
-	MarkdownFileInfo,
-	Modal,
-	Notice,
-	Plugin,
-} from 'obsidian';
+import './styles.css';
+import { Plugin } from 'obsidian';
+import { FunctoriumApi } from './api';
+import { JournalSync } from './sync';
 import {
 	DEFAULT_SETTINGS,
-	MyPluginSettings,
-	SampleSettingTab,
+	FunctoriumSettings,
+	FunctoriumSettingTab,
 } from './settings';
+import { ATLAS_VIEW_TYPE, AtlasView } from './atlas/AtlasView';
 
-// Remember to rename these classes and interfaces!
-
-export default class MyPlugin extends Plugin {
-	settings!: MyPluginSettings;
+export default class FunctoriumPlugin extends Plugin {
+	settings!: FunctoriumSettings;
+	private journalSync!: JournalSync;
 
 	async onload() {
-		await this.loadSettings();
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings.pins = [...(this.settings.pins ?? [])];
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (_evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
+		this.addSettingTab(new FunctoriumSettingTab(this.app, this));
+		this.journalSync = new JournalSync(this);
+		this.journalSync.start();
+
+		this.registerView(ATLAS_VIEW_TYPE, (leaf) => new AtlasView(leaf, this));
+
+		this.addRibbonIcon('network', 'Open Atlas', () => {
+			void this.activateAtlasView();
 		});
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
-
-		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			},
+			id: 'open-atlas',
+			name: 'Open Atlas',
+			callback: () => void this.activateAtlasView(),
 		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (
-				editor: Editor,
-				_ctx: MarkdownView | MarkdownFileInfo,
-			) => {
-				editor.replaceSelection('Sample editor command');
-			},
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView =
-					this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
-			},
-		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(activeDocument, 'click', (_evt: MouseEvent) => {
-			new Notice('Click');
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(
-			window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000),
-		);
 	}
 
-	onunload() {}
+	get serverUrl(): string {
+		const host = this.settings.host
+			.trim()
+			.replace(/^https?:\/\//, '')
+			.replace(/\/+$/, '');
 
-	async loadSettings() {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			(await this.loadData()) as Partial<MyPluginSettings>,
-		);
+		return `http://${host}:${this.settings.port}`;
+	}
+
+	get api(): FunctoriumApi {
+		return new FunctoriumApi(this.serverUrl);
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
-}
 
-class SampleModal extends Modal {
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.setText('Woah!');
-	}
+	async activateAtlasView(): Promise<void> {
+		const existing = this.app.workspace.getLeavesOfType(ATLAS_VIEW_TYPE);
 
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
+		if (existing.length > 0) {
+			await this.app.workspace.revealLeaf(existing[0]);
+			return;
+		}
+
+		const leaf = this.app.workspace.getLeaf('tab');
+		await leaf.setViewState({ type: ATLAS_VIEW_TYPE, active: true });
+		await this.app.workspace.revealLeaf(leaf);
 	}
 }
